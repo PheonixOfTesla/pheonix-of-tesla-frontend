@@ -1,5 +1,5 @@
 import React, { useRef, useMemo, useState, useEffect, Suspense } from 'react';
-import { Canvas, useFrame, useThree, useLoader, extend } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { 
   OrbitControls, 
   Stars, 
@@ -417,13 +417,7 @@ function Sun() {
   );
 }
 
-// Enhanced planet with all features
-function Planet({ planet, onClick, isHovered, setHovered }) {
-  const meshRef = useRef();
-  const atmosphereRef = useRef();
-  const cloudsRef = useRef();
-  const auroraRef = useRef();
-  const navigate = useNavigate();
+
   
   const handleClick = () => {
     if (onClick) {
@@ -442,7 +436,7 @@ function Planet({ planet, onClick, isHovered, setHovered }) {
       
       meshRef.current.position.x = Math.cos(angle) * planet.distance;
       meshRef.current.position.z = Math.sin(angle) * planet.distance;
-      meshRef.current.position.y = Math.sin(angle * 0.5) * planet.orbitTilt || 0;
+      meshRef.current.position.y = Math.sin(angle * 0.5) * (planet.orbitTilt || 0);
       
       // Rotation
       meshRef.current.rotation.y += planet.rotation;
@@ -504,9 +498,10 @@ function Planet({ planet, onClick, isHovered, setHovered }) {
       {/* Main planet body */}
       <mesh>
         <sphereGeometry args={[planet.radius, 64, 64]} />
-        <meshPhongMaterial
-          color={planet.color}
-          emissive={planet.emissive}
+        <meshStandardMaterial
+          map={texture}
+          color={texture ? 0xffffff : planet.color}
+          emissive={planet.emissive || 0x000000}
           emissiveIntensity={0.1}
           metalness={planet.metalness}
           roughness={planet.roughness}
@@ -660,7 +655,7 @@ function AsteroidBelt() {
   );
 }
 
-// Comet with particle tail
+// Comet with particle tail (using cylinder instead of capsule geometry)
 function Comet() {
   const cometRef = useRef();
   const tailRef = useRef();
@@ -748,7 +743,7 @@ function Comet() {
   );
 }
 
-// Camera controller with smooth movements
+// Camera controller with enhanced zoom controls
 function CameraController({ target, zoom }) {
   const { camera } = useThree();
   const controls = useRef();
@@ -773,14 +768,97 @@ function CameraController({ target, zoom }) {
       enablePan={true}
       enableZoom={true}
       enableRotate={true}
-      zoomSpeed={0.6}
+      zoomSpeed={1.2}  // Increased zoom speed for better scroll response
       panSpeed={0.5}
       rotateSpeed={0.4}
       minDistance={20}
       maxDistance={400}
       minPolarAngle={Math.PI / 6}
       maxPolarAngle={Math.PI - Math.PI / 6}
+      // Enable damping for smoother controls
+      enableDamping={true}
+      dampingFactor={0.05}
     />
+  );
+}
+
+// Zoom control buttons component
+function ZoomControls({ onZoomIn, onZoomOut, onReset }) {
+  return (
+    <div style={{
+      position: 'absolute',
+      bottom: 20,
+      left: '50%',
+      transform: 'translateX(-50%)',
+      display: 'flex',
+      gap: '10px',
+      backgroundColor: 'rgba(0,0,0,0.7)',
+      padding: '10px',
+      borderRadius: '25px',
+      backdropFilter: 'blur(10px)',
+      border: '1px solid rgba(255,255,255,0.1)'
+    }}>
+      <button
+        onClick={onZoomIn}
+        style={{
+          width: '40px',
+          height: '40px',
+          borderRadius: '50%',
+          backgroundColor: 'rgba(255,255,255,0.1)',
+          color: 'white',
+          border: '1px solid rgba(255,255,255,0.3)',
+          cursor: 'pointer',
+          fontSize: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: 'all 0.3s ease'
+        }}
+        onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.2)'}
+        onMouseLeave={(e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.1)'}
+      >
+        +
+      </button>
+      <button
+        onClick={onReset}
+        style={{
+          padding: '0 15px',
+          height: '40px',
+          borderRadius: '20px',
+          backgroundColor: 'rgba(255,255,255,0.1)',
+          color: 'white',
+          border: '1px solid rgba(255,255,255,0.3)',
+          cursor: 'pointer',
+          fontSize: '14px',
+          transition: 'all 0.3s ease'
+        }}
+        onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.2)'}
+        onMouseLeave={(e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.1)'}
+      >
+        Reset View
+      </button>
+      <button
+        onClick={onZoomOut}
+        style={{
+          width: '40px',
+          height: '40px',
+          borderRadius: '50%',
+          backgroundColor: 'rgba(255,255,255,0.1)',
+          color: 'white',
+          border: '1px solid rgba(255,255,255,0.3)',
+          cursor: 'pointer',
+          fontSize: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: 'all 0.3s ease'
+        }}
+        onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.2)'}
+        onMouseLeave={(e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.1)'}
+      >
+        −
+      </button>
+    </div>
   );
 }
 
@@ -790,6 +868,7 @@ export default function SolarSystem() {
   const [selectedPlanet, setSelectedPlanet] = useState(null);
   const [cameraTarget, setCameraTarget] = useState(new THREE.Vector3(0, 0, 0));
   const [zoom, setZoom] = useState(1);
+  const [cameraDistance, setCameraDistance] = useState(200);
   
   const planets = [
     {
@@ -917,12 +996,28 @@ export default function SolarSystem() {
     
     setCameraTarget(target);
     setZoom(2);
+    setCameraDistance(planet.radius * 5 + 20);
+  };
+  
+  const handleZoomIn = () => {
+    setCameraDistance(prev => Math.max(20, prev - 20));
+  };
+  
+  const handleZoomOut = () => {
+    setCameraDistance(prev => Math.min(400, prev + 20));
+  };
+  
+  const handleReset = () => {
+    setCameraTarget(new THREE.Vector3(0, 0, 0));
+    setZoom(1);
+    setCameraDistance(200);
+    setSelectedPlanet(null);
   };
   
   return (
     <div style={{ width: '100vw', height: '100vh', background: '#000' }}>
       <Canvas
-        camera={{ position: [0, 100, 200], fov: 60 }}
+        camera={{ position: [0, 100, cameraDistance], fov: 60 }}
         gl={{
           antialias: true,
           alpha: false,
@@ -931,8 +1026,7 @@ export default function SolarSystem() {
           depth: true,
           logarithmicDepthBuffer: true,
           toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 1.2,
-          outputEncoding: THREE.sRGBEncoding
+          toneMappingExposure: 1.2
         }}
         shadows
       >
@@ -964,7 +1058,7 @@ export default function SolarSystem() {
           {/* Comet */}
           <Comet />
           
-          {/* Camera controls */}
+          {/* Camera controls with enhanced zoom */}
           <CameraController target={cameraTarget} zoom={zoom} />
           
           {/* Post-processing effects */}
@@ -1026,10 +1120,17 @@ export default function SolarSystem() {
         )}
       </div>
       
+      {/* Zoom Controls */}
+      <ZoomControls 
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onReset={handleReset}
+      />
+      
       {/* Performance stats */}
       <div style={{
         position: 'absolute',
-        bottom: 20,
+        bottom: 80,
         right: 20,
         color: 'white',
         fontFamily: 'monospace',
@@ -1047,8 +1148,8 @@ export default function SolarSystem() {
       {/* Instructions */}
       <div style={{
         position: 'absolute',
-        bottom: 20,
-        left: 20,
+        top: 20,
+        right: 20,
         color: 'white',
         fontFamily: 'Arial, sans-serif',
         fontSize: '12px',
@@ -1061,6 +1162,7 @@ export default function SolarSystem() {
         <div>🔄 Drag: Rotate View</div>
         <div>📏 Scroll: Zoom In/Out</div>
         <div>🎯 Click Planet: Navigate to Module</div>
+        <div>⌨️ Use Zoom Buttons Below</div>
       </div>
     </div>
   );

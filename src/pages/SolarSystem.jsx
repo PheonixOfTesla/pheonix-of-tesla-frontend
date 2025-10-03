@@ -417,7 +417,119 @@ function Sun() {
   );
 }
 
-
+// Enhanced planet with NASA textures and fallback
+function Planet({ planet, onClick, isHovered, setHovered }) {
+  const meshRef = useRef();
+  const atmosphereRef = useRef();
+  const cloudsRef = useRef();
+  const auroraRef = useRef();
+  const navigate = useNavigate();
+  const [texture, setTexture] = useState(null);
+  
+  // Load NASA textures with fallback to procedural textures
+  useEffect(() => {
+    const loader = new THREE.TextureLoader();
+    const textureUrls = {
+      Mercury: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/mercury.jpg',
+      Venus: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/venus_atmosphere.jpg',
+      Earth: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg',
+      Mars: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/mars_1k_color.jpg',
+      Jupiter: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/jupiter.jpg',
+      Saturn: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/saturn.jpg'
+    };
+    
+    const url = textureUrls[planet.name];
+    if (url) {
+      loader.load(
+        url,
+        (loadedTexture) => {
+          setTexture(loadedTexture);
+        },
+        undefined,
+        (error) => {
+          console.warn(`Using fallback procedural texture for ${planet.name}`);
+          // Create fallback procedural texture
+          const canvas = document.createElement('canvas');
+          canvas.width = 512;
+          canvas.height = 256;
+          const ctx = canvas.getContext('2d');
+          
+          const gradient = ctx.createLinearGradient(0, 0, 512, 256);
+          
+          switch(planet.name) {
+            case 'Mercury':
+              gradient.addColorStop(0, '#A67B5B');
+              gradient.addColorStop(0.5, '#8B6F47');
+              gradient.addColorStop(1, '#6F4E37');
+              break;
+            case 'Venus':
+              gradient.addColorStop(0, '#FFA500');
+              gradient.addColorStop(0.5, '#FFB52E');
+              gradient.addColorStop(1, '#FF8C00');
+              break;
+            case 'Earth':
+              gradient.addColorStop(0, '#2E5BFF');
+              gradient.addColorStop(0.3, '#4169E1');
+              gradient.addColorStop(0.7, '#228B22');
+              gradient.addColorStop(1, '#8B4513');
+              break;
+            case 'Mars':
+              gradient.addColorStop(0, '#CD5C5C');
+              gradient.addColorStop(0.5, '#B22222');
+              gradient.addColorStop(1, '#8B0000');
+              break;
+            case 'Jupiter':
+              gradient.addColorStop(0, '#D4A373');
+              gradient.addColorStop(0.25, '#C19A6B');
+              gradient.addColorStop(0.5, '#B8860B');
+              gradient.addColorStop(0.75, '#CD853F');
+              gradient.addColorStop(1, '#DEB887');
+              break;
+            case 'Saturn':
+              gradient.addColorStop(0, '#F4E7D1');
+              gradient.addColorStop(0.5, '#FAEBD7');
+              gradient.addColorStop(1, '#FFE4B5');
+              break;
+            default:
+              gradient.addColorStop(0, '#888888');
+              gradient.addColorStop(1, '#666666');
+          }
+          
+          ctx.fillStyle = gradient;
+          ctx.fillRect(0, 0, 512, 256);
+          
+          // Add surface details
+          for(let i = 0; i < 200; i++) {
+            const x = Math.random() * 512;
+            const y = Math.random() * 256;
+            const radius = Math.random() * 3;
+            const opacity = Math.random() * 0.3;
+            ctx.fillStyle = `rgba(255,255,255,${opacity})`;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          
+          // Add bands for gas giants
+          if (planet.name === 'Jupiter' || planet.name === 'Saturn') {
+            for(let i = 0; i < 10; i++) {
+              const y = i * 25.6;
+              ctx.strokeStyle = `rgba(255,255,255,${Math.random() * 0.2})`;
+              ctx.lineWidth = Math.random() * 3 + 1;
+              ctx.beginPath();
+              ctx.moveTo(0, y);
+              ctx.lineTo(512, y);
+              ctx.stroke();
+            }
+          }
+          
+          const fallbackTexture = new THREE.CanvasTexture(canvas);
+          fallbackTexture.needsUpdate = true;
+          setTexture(fallbackTexture);
+        }
+      );
+    }
+  }, [planet.name]);
   
   const handleClick = () => {
     if (onClick) {
@@ -486,7 +598,7 @@ function Sun() {
       transparent: true,
       blending: THREE.AdditiveBlending
     });
-  }, [planet]);
+  }, [planet.atmosphere, planet.atmosphereColor, planet.atmosphereOpacity]);
   
   return (
     <group 
@@ -655,7 +767,7 @@ function AsteroidBelt() {
   );
 }
 
-// Comet with particle tail (using cylinder instead of capsule geometry)
+// Comet with particle tail
 function Comet() {
   const cometRef = useRef();
   const tailRef = useRef();
@@ -768,14 +880,13 @@ function CameraController({ target, zoom }) {
       enablePan={true}
       enableZoom={true}
       enableRotate={true}
-      zoomSpeed={1.2}  // Increased zoom speed for better scroll response
+      zoomSpeed={1.2}
       panSpeed={0.5}
       rotateSpeed={0.4}
       minDistance={20}
       maxDistance={400}
       minPolarAngle={Math.PI / 6}
       maxPolarAngle={Math.PI - Math.PI / 6}
-      // Enable damping for smoother controls
       enableDamping={true}
       dampingFactor={0.05}
     />
@@ -957,10 +1068,10 @@ export default function SolarSystem() {
       atmosphereOpacity: 0.2,
       aurora: true,
       moons: [
-        { radius: 1.8, distance: 45, speed: 5 }, // Io
-        { radius: 1.5, distance: 50, speed: 3 }, // Europa
-        { radius: 2.6, distance: 58, speed: 2 }, // Ganymede
-        { radius: 2.4, distance: 65, speed: 1 }  // Callisto
+        { radius: 1.8, distance: 45, speed: 5 },
+        { radius: 1.5, distance: 50, speed: 3 },
+        { radius: 2.6, distance: 58, speed: 2 },
+        { radius: 2.4, distance: 65, speed: 1 }
       ]
     },
     {
